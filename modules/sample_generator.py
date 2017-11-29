@@ -4,15 +4,16 @@ from PIL import Image
 from utils import *
 
 def gen_samples(generator, bbox, n, overlap_range=None, scale_range=None):
-    
+
     if overlap_range is None and scale_range is None:
         return generator(bbox, n)
-    
+
     else:
         samples = None
         remain = n
         factor = 2
         while remain > 0 and factor < 16:
+            # def __call__(self, bb, n):
             samples_ = generator(bbox, remain*factor)
 
             idx = np.ones(len(samples_), dtype=bool)
@@ -22,7 +23,7 @@ def gen_samples(generator, bbox, n, overlap_range=None, scale_range=None):
             if scale_range is not None:
                 s = np.prod(samples_[:,2:], axis=1) / np.prod(bbox[2:])
                 idx *= (s >= scale_range[0]) * (s <= scale_range[1])
-            
+
             samples_ = samples_[idx,:]
             samples_ = samples_[:min(remain, len(samples_))]
             if samples is None:
@@ -31,7 +32,7 @@ def gen_samples(generator, bbox, n, overlap_range=None, scale_range=None):
                 samples = np.concatenate([samples, samples_])
             remain = n - len(samples)
             factor = factor*2
-        
+
         return samples
 
 
@@ -51,22 +52,29 @@ class SampleGenerator():
 
         # (center_x, center_y, w, h)
         sample = np.array([bb[0]+bb[2]/2, bb[1]+bb[3]/2, bb[2], bb[3]], dtype='float32')
+
+        # ? sample[None, :] what for ? sample is the same in this case
         samples = np.tile(sample[None,:],(n,1))
 
         # vary aspect ratio
         if self.aspect_f is not None:
+
+            # (0, 1) to (-1, 1)
             ratio = np.random.rand(n,1)*2-1
             samples[:,2:] *= self.aspect_f ** np.concatenate([ratio, -ratio],axis=1)
 
         # sample generation
         if self.type=='gaussian':
+            # centre and scale: gaussian random
+            # random.randn
             samples[:,:2] += self.trans_f * np.mean(bb[2:]) * np.clip(0.5*np.random.randn(n,2),-1,1)
             samples[:,2:] *= self.scale_f ** np.clip(0.5*np.random.randn(n,1),-1,1)
 
         elif self.type=='uniform':
+            # random.rand: uniform
             samples[:,:2] += self.trans_f * np.mean(bb[2:]) * (np.random.rand(n,2)*2-1)
             samples[:,2:] *= self.scale_f ** (np.random.rand(n,1)*2-1)
-        
+
         elif self.type=='whole':
             m = int(2*np.sqrt(n))
             xy = np.dstack(np.meshgrid(np.linspace(0,1,m),np.linspace(0,1,m))).reshape(-1,2)
@@ -89,7 +97,7 @@ class SampleGenerator():
 
     def set_trans_f(self, trans_f):
         self.trans_f = trans_f
-    
+
     def get_trans_f(self):
         return self.trans_f
 

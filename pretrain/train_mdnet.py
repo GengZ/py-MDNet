@@ -28,17 +28,21 @@ def set_optimizer(model, lr_base, lr_mult=opts['lr_mult'], momentum=opts['moment
 
 
 def train_mdnet():
-    
+
     ## Init dataset ##
     with open(data_path, 'rb') as fp:
         data = pickle.load(fp)
 
+    # data:
+    #   sequential list
     K = len(data)
     dataset = [None]*K
     for k, (seqname, seq) in enumerate(data.iteritems()):
         img_list = seq['images']
         gt = seq['gt']
         img_dir = os.path.join(img_home, seqname)
+        # dataset[k]:
+        #   DataIter, providing positive and nagative samples per sequence
         dataset[k] = RegionDataset(img_dir, img_list, gt, opts)
 
     ## Init model ##
@@ -46,7 +50,7 @@ def train_mdnet():
     if opts['use_gpu']:
         model = model.cuda()
     model.set_learnable_params(opts['ft_layers'])
-        
+
     ## Init criterion and optimizer ##
     criterion = BinaryLoss()
     evaluator = Precision()
@@ -55,19 +59,21 @@ def train_mdnet():
     best_prec = 0.
     for i in range(opts['n_cycles']):
         print "==== Start Cycle %d ====" % (i)
+        # K: number of data sequence
         k_list = np.random.permutation(K)
         prec = np.zeros(K)
         for j,k in enumerate(k_list):
             tic = time.time()
             pos_regions, neg_regions = dataset[k].next()
-            
+
             pos_regions = Variable(pos_regions)
             neg_regions = Variable(neg_regions)
-        
+
             if opts['use_gpu']:
                 pos_regions = pos_regions.cuda()
                 neg_regions = neg_regions.cuda()
-        
+
+            # forward
             pos_score = model(pos_regions, k)
             neg_score = model(neg_regions, k)
 
@@ -76,7 +82,7 @@ def train_mdnet():
             loss.backward()
             torch.nn.utils.clip_grad_norm(model.parameters(), opts['grad_clip'])
             optimizer.step()
-            
+
             prec[k] = evaluator(pos_score, neg_score)
 
             toc = time.time()-tic
